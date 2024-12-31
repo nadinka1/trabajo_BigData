@@ -1,0 +1,256 @@
+---
+title: "THE SIMPSONS"
+description: "Un análisis de la serie: Los Simpsons"
+author: 
+  - Mireia Nicolau Serrano (minise@alumni.uv.es)
+  - Nadia Barrantes Dmitrieva (nabad@alumni.uv.es)
+date: 2024-12-25
+categories: [trabajo BigData]
+title-block-banner: "imagenes/baner2.png"  
+title-block-banner-color: white
+title-block-style: default 
+toc-depth: 3
+smooth-scroll: true
+
+format:
+  html:
+    theme: cerulean
+    embed-resources: true
+    link-external-newwindow: true
+
+execute: 
+  echo: false
+  code-tools: true
+  code-link: true
+---
+
+#### Estructura
+
+1.  Iniciaremos con una introducción que ofrece una visión general de la serie y los objetivos de este análisis.
+2.  Luego, presentaremos gráficos que mostrarán la audiencia promedio por episodio y temporada, así como las calificaciones de críticos y aficionados. También exploraremos la evolución de los especiales de Halloween que tanto han encantado a los fanáticos.
+3.  Además, incluiremos datos curiosos que revelan hechos destacados y récords impresionantes de la serie.
+4.  Finalmente, cerraremos con una conclusión que resumirá nuestros hallazgos y ofrecerá algunas reflexiones finales.
+
+```{r , message=FALSE, warning=FALSE}
+library(gganimate)
+library(dplyr)
+library(tidyr)
+library(rio)
+library(ggplot2)
+library(plotly)
+library(DT)
+library(knitr)
+library(kableExtra)
+
+archivo_de_destino <- here::here("datos", "lossimpsonsdatos.xlsx")
+archivo_2_de_destino <- here::here("datos", "audiencia_simpsons.xlsx")
+
+simpsons_datos <- rio::import(archivo_de_destino)
+audiencia_datos <- rio::import(archivo_2_de_destino)
+
+```
+
+## 1. INTRODUCCIÓN
+
+Los Simpson, es una serie animada que hizo su debut en 1989 y ha estado siguiendo a la familia Simpson en la ficticia ciudad de Springfield. Con su humor y su capacidad para divertir contando la vida cotidiana de la familia, ha logrado convertirse en un verdadero ícono cultural y se cuenta entre las series más largas en la historia de la televisión.
+
+Los Simpsons tienen una gran cantidad de episodios y temporadas. **¿*Pero sabes cuál es el total?***
+
+```{r, results ='asis', echo=FALSE, message=FALSE, warning=FALSE}
+num_episodes <- nrow(simpsons_datos)
+num_seasons <- length(unique(simpsons_datos$season))
+
+
+cat("<div style='color:#283593; font-weight:bold; font-size:1.1em;'>")
+cat(paste("Número total de episodios:", num_episodes), "<br>")
+cat(paste("Número total de temporadas:", num_seasons), "</div>")
+
+```
+
+## 2. ANÁLISIS DE AUDIENCIA
+
+Uno de los aspectos clave que ha contribuido al éxito de Los Simpsons es su habilidad para captar la atención de un público muy diverso.
+
+A continuación, se presenta un gráfico que muestra cómo ha cambiado la audiencia a lo largo de las temporadas, reflejando las visualizaciones por cada una de ellas.
+
+```{r , message=FALSE, warning=FALSE}
+
+
+ggplot(audiencia_datos, aes(x = factor(season), y = audiencia_promedio)) +
+  geom_col(fill = "#FFEB3B") +
+  theme_gray() +
+  labs(
+    title = "AUDIENCIA PROMEDIO POR TEMPORADA",
+    subtitle = "Total espectadores (en millones)",
+    x = "Temporada",
+    y = "Audiencia Promedio"
+  )
+
+```
+
+## 2.1 PUNTUACIONES
+
+Aquí mostramos cuales son los episodios mejor puntuados por cada temporada, y en conjunto del total de temporadas.
+
+### 2.1.1. EL EPISODIO MEJOR PUNTUADO DE CADA TEMPORADA
+
+```{r, echo=FALSE}
+mejor_puntuados <- simpsons_datos %>%
+  group_by(season) %>% 
+  slice_max(rating) %>%
+  select(season, episode, title, rating)
+
+datatable(
+  mejor_puntuados,
+  caption = "Mejores episodios por temporada",
+  options = list(
+    pageLenght = 7,
+    scrollY = "300px",
+    scroller = TRUE
+  )
+)
+
+```
+
+Como ves hay un montón, asi que ahora te decimos cuales son los 10 episodios mejor puntuados en el conjunto de todas las temporadas para que tengas una lista más compacta.
+
+### 2.1.2. LOS 10 EPISODIOS MEJOR PUNTUADOS DE LA SERIE
+
+```{r}
+top_10_episodios <- simpsons_datos %>%
+  arrange(desc(rating)) %>%
+  head(10) %>%
+  select(season, episode, title, rating)
+
+top_10_episodios %>%
+  kbl(caption = "Los 10 episodios mejor puntuados ",
+      format = "html"
+      ) %>%
+  kable_styling(
+    bootstrap_options = c("striped", "hover", "condensed", "responsive"),
+    full_width = FALSE
+  ) %>%
+  row_spec(0, bold = TRUE, background = "#FCF3CF", color = "#CA6F1E")
+
+```
+
+### 2.1.3. LOS 10 EPISODIOS CON LA PUNTUACIÓN MÁS BAJA
+
+```{r, message=FALSE, warning=FALSE}
+los_10_peores <- simpsons_datos %>%
+  slice_min(order_by = rating, n = 10) %>%
+  select(season, episode, title, rating)
+
+los_10_peores %>%
+  kbl(
+    caption = "Los 10 episodios peor puntuados",
+    format = "html"
+  ) %>%
+  kable_styling(
+    bootstrap_options = c("striped", "hover", "condensed", "responsive"),
+    full_width = FALSE
+  ) %>%
+  row_spec(0, bold = TRUE, background = "#D0ECE7", color = "#0E6655")
+
+```
+
+### 2.1.4 GRÁFICO DE LAPUNTUACIÓN POR TEMPORADAS
+
+```{r}
+
+puntuacion_media_temp <- simpsons_datos %>%
+  group_by(season) %>%
+  summarise(media_puntuacion = mean(rating, na.rm = TRUE))
+
+puntuacion_min <- min(puntuacion_media_temp$media_puntuacion, na.rm = TRUE)
+puntuacion_max <- max(puntuacion_media_temp$media_puntuacion, na.rm = TRUE)
+
+ggplot(puntuacion_media_temp, aes(x = factor(season), y = media_puntuacion)) +
+  geom_col(fill = "#CC0033") +
+  theme_gray() +
+  labs(
+    title = "PUNTUACIÓN MEDIA POR TEMPORADA",
+    x = "Temporada",
+    y = "Puntuación Media"
+  ) +
+  coord_cartesian(ylim = c(puntuacion_min - 0.5, puntuacion_max + 0.5))
+  
+
+
+```
+
+## 2.2. COMPARACIÓN AUDIENCIA Y PUNTUACIÓN
+
+Vamos a comparar los datos de la audiencia promedio con la puntuación media de cada temporada, para observar si existe una relación entre las dos.
+
+```{r, message=FALSE, warning=FALSE}
+
+df_comparacion <- left_join(audiencia_datos, puntuacion_media_temp, by = "season")
+
+df_long <- df_comparacion %>%
+  pivot_longer(
+    cols = c(media_puntuacion, audiencia_promedio),
+    names_to = "variable",
+    values_to = "valor"
+  )
+
+p1 <- ggplot(df_long, aes(x = season, y = valor, color = variable, group = variable)) +
+  geom_line(size = 1.5) +
+  geom_point(size = 3) +
+  theme_minimal() +
+  labs(
+    title = "Evolución de Puntuación Media y Audiencia Promedio por Temporada",
+    x = "Temporada",
+    y = "Valor",
+    color = "Métrica"
+  ) 
+
+anim1 <- p1+ transition_reveal(season) +
+  ease_aes('linear')
+print(anim1)
+```
+
+La reducción de la audiencia de "Los Simpson" a través de los años ha sido tema de estudio por parte de críticos y fans de la serie. Diferentes elementos han sido identificados como posibles motivos de esta disminución:
+
+1.  **Desgaste de frescura y originalidad**: Tras superar las 35 temporadas, algunos críticos sostienen que la serie ha disminuido en la innovación y creatividad que la definían al principio. La repetición de historias y la ausencia de desarrollo en los personajes podrían haber influido en el desinterés del público.
+
+2.  **Competencia con otras series**: La llegada de nuevas series de animación para adultos, como "Padre de Familia" o "Rick y Morty", ha proporcionado opciones novedosas y atractivas para el público, lo que podría haber desviado el interés de "Los Simpson".
+
+3.  **Adaptación a los cambios sociales y tecnológicos**: La serie ha buscado incluir componentes contemporáneos, como internet y las redes sociales, en sus historias. No obstante, ciertos críticos opinan que estas adaptaciones no siempre han sido exitosas, lo que ha influido en la relación con el público actual.
+
+4.  **Desgaste natural debido a la duración**: Conservar la calidad y la atracción por más de treinta años es un reto significativo. El uso continuo de la serie podría haber ocasionado una merma en la calidad percibida de los episodios, afectando así la disminución de la audiencia.
+
+A pesar de estas dificultades, "Los Simpson" ha evidenciado una mejora en sus últimas temporadas, obteniendo críticas más positivas y reavivando el interés de su público.
+
+## 2.3. ESPECIALES: LA CASITA DEL HORROR
+
+![](imagenes/treehousehorror.jpg){fig-align="center"}
+
+```{r, message=FALSE, warning=FALSE}
+casita_del_horror <- simpsons_datos %>%
+ filter(grepl("Treehouse of Horror", title, ignore.case = TRUE))
+
+p2 <- ggplot(casita_del_horror, aes(x = season, y = rating)) +
+  geom_line(color = "orange") +
+  geom_point(color = "red") +
+  theme_minimal() +
+  labs(
+    title = "Puntuación de 'La Casita del Horror' por Temporada",
+    x = "Temporada",
+    y = "Puntuación"
+  )
+
+anim <- p2 +
+  transition_reveal(season) +
+  ease_aes('linear')
+
+print(anim)
+```
+
+***La Casita del Horror*** es una serie de episodios especiales de *Halloween* de **Los Simpson**, llamados en inglés `Treehouse of Horror`. Estos episodios se distinguen por ofrecer relatos independientes del canon tradicional de la serie, con tramas que parodian filmes de terror, ciencia ficción y aspectos sobrenaturales.
+
+El episodio inaugural de "*La Casita del Horror*" se transmitió el 25 de octubre de 1990, en la segunda temporada de la serie. Desde ese momento, se ha establecido como una práctica anual, con un especial en cada periodo. Cada episodio generalmente se divide en tres partes, cada una con una narrativa distinta que trata temas de terror o ciencia ficción, frecuentemente con un tono cómico y satírico.
+
+Estos capítulos son célebres por sus parodias de clásicos del cine y la literatura de terror, incluyendo El Resplandor, Drácula de Bram Stoker, King Kong, entre otros... Asimismo, incluyen menciones a la cultura popular y a acontecimientos actuales. Al alejarse de la continuidad normal de la serie, los guionistas y animadores pueden explorar historias más somberas y probar diversos estilos narrativos y visuales.
+
+Varios de estos episodios han recibido una calificación muy positiva tanto de la crítica como de los fanáticos. Por ejemplo, `"Treehouse of Horror V"` (1994), que hace parodia de *El Resplandor*, cuenta con una calificación de 9.2/10 en IMDb, en otros se dice que estos especiales son el motivo de que la serie, se siga manteniendo a pesar de las continuadas malas críticas.
